@@ -9,7 +9,7 @@ const path = require('path')
 const secret = process.env.SECRET
 
 const register = async (req, res, next) => {
-  const { password, email } = req.body
+  const { password, email, subscription, verifyToken } = req.body
   const user = await User.findOne({ email })
   if (user) {
     res.json({
@@ -21,7 +21,10 @@ const register = async (req, res, next) => {
     })
   }
   try {
-    const newUser = new User({ email })
+    const emailService = new EmailService(process.env.NODE_ENV)
+        console.log(emailService, 'sdsds')
+        await emailService.sendVerifyEmail(verifyToken, email)
+    const newUser = new User({ email subscription, verifyToken })
     newUser.setPassword(password)
     await newUser.save()
     res.status(201).json({
@@ -47,6 +50,12 @@ const login = async (req, res, next) => {
       data: 'Bad request'
     })
   }
+  if (!user.verify) {
+    return res.status(401).json({
+        status: 401,
+        message: 'Not authorized'
+    })
+}
   const id = user.id
   const payload = {
     id
@@ -125,4 +134,29 @@ const updateAvatar = async (req, res, next) => {
   }
 }
 
-module.exports = { register, login, logout, currentUser, updateAvatar }
+const verifyUser = async (req, res, next) => {
+  try {
+      const user = await User.findOne(req.params.token)
+      if (!user) {
+          return res.json({
+              status: 404,
+              message: 'User not found'
+          })
+      }
+      await User.updateVerifyToken(user.id, true, null)
+      return res.json({
+          status: 200,
+          message: 'Verification successful'
+      })
+  } catch (error) {
+      next(error)
+  }
+}
+
+module.exports = { 
+  register, 
+  login, 
+  logout, 
+  currentUser, 
+  updateAvatar, 
+  verifyUser }
